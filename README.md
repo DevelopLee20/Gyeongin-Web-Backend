@@ -2,12 +2,12 @@
 
 ## TODO List
 
+- [ ] 조달 데이터 허브 OPEN API 연동 / 클라이언트 구현 [공공데이터포털 url](https://www.data.go.kr/data/15058815/openapi.do#tab_layer_detail_function)
+- [ ] 엑셀파일 업로드 API 구현
 - [ ] DEV docker 설정 배치 파일 생성
 - [ ] PROD docker 설정 배치 파일 생성
 - [ ] PROD 환경에서 APP_PORT 주입 안되는 문제 해결
 - [ ] Github Actions 설정 / 배포 자동화 설정
-- [ ] 엑셀파일 업로드 API 구현
-- [ ] 조달 데이터 허브 OPEN API 연동 [공공데이터포털 url](https://www.data.go.kr/data/15058815/openapi.do#tab_layer_detail_function)
 - [ ] 프론트 메인 페이지 작성
 
 ## 완료된 작업
