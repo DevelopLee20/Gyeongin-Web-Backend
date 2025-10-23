@@ -2,7 +2,6 @@
 
 ## TODO List
 
-- [ ] pre-commit 훅 설정
 - [ ] Docker 설정
 - [ ] Github Actions 설정 / 배포 자동화 설정
 - [ ] MongoDB 빅데이터 DB 구축
@@ -14,3 +13,4 @@
 
 - [x] 상태코드 starlette로 변경
 - [x] 테스트 코드 설정
+- [x] pre-commit 훅 설정
