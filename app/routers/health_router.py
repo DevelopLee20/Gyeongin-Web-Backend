@@ -4,7 +4,7 @@ from fastapi import APIRouter
 from starlette.status import HTTP_200_OK
 
 from app.base.base_response import BaseResponse
-from app.db.mongo_db import mongo_db
+from app.db.mongo_db import db
 
 router = APIRouter(prefix="/health", tags=["Health"])
 
@@ -21,7 +21,7 @@ async def health_check():
 async def health_check_db():
     """DB 헬스체크 API"""
     try:
-        await mongo_db.command("ping")  # MongoDB에 ping 명령어 전송
+        await db.command("ping")  # MongoDB에 ping 명령어 전송
         return BaseResponse(
             status_code=HTTP_200_OK,
             detail="DB 헬스체크 성공",
