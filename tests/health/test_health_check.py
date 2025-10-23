@@ -14,7 +14,7 @@ class TestHealthCheck:
         assert data["status_code"] == HTTP_200_OK
         assert data["detail"] == "헬스체크 성공"
         assert data["data"]["status"] == "healthy"
-        
+
     # def test_health_check_sync(self, client):
     #     """동기 방식 헬스체크 테스트"""
     #     response = client.get("/health/")

@@ -5,11 +5,13 @@ from httpx import AsyncClient
 
 from app.main import app
 
+
 # 동기식 테스트 클라이언트
 @pytest.fixture(scope="module")
 def client():
     """Synchronous test client fixture"""
     return TestClient(app)
+
 
 # 비동기식 테스트 클라이언트
 @pytest.fixture(scope="module")

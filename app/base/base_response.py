@@ -1,7 +1,8 @@
 from pydantic import BaseModel, Field
-from typing import TypeVar, Generic
+from typing import TypeVar
 
-typeT = TypeVar('T')
+typeT = TypeVar("T")
+
 
 class BaseResponse(BaseModel):
     status_code: int = Field(..., description="상태 코드")
