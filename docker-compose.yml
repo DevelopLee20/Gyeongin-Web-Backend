@@ -1,0 +1,60 @@
+services:
+  # FastAPI 애플리케이션
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        APP_PORT: ${BACKEND_PORT}
+    container_name: gyeongin-backend
+    ports:
+      - "${BACKEND_PORT}:${BACKEND_PORT}"
+    environment:
+      - APP_PORT=${BACKEND_PORT}
+    env_file:
+      - .env
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - gyeongin-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${BACKEND_PORT}/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+
+  # MongoDB 데이터베이스
+  mongodb:
+    image: mongo:8.0.15-noble
+    container_name: gyeongin-mongodb
+    ports:
+      - "27017:27017"
+    env_file:
+      - .env
+    volumes:
+      # 데이터 영속성을 위한 볼륨 마운트
+      - mongodb-data:/data/db
+      # MongoDB 설정 파일 (선택사항)
+      - ./mongodb-init:/docker-entrypoint-initdb.d
+    networks:
+      - gyeongin-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+# 네트워크 설정
+networks:
+  gyeongin-network:
+    driver: bridge
+
+# 볼륨 설정
+volumes:
+  mongodb-data:
+    driver: local
