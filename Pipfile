@@ -10,9 +10,15 @@ pydantic = "*"
 starlette = "*"
 
 [dev-packages]
+pytest = "*"
+pytest-asyncio = "*"
+pytest-xdist = "*"
+httpx = "*"
 
 [requires]
 python_version = "3.13"
 
 [scripts]
 start = "uvicorn app.main:app --reload --host 0.0.0.0 --port 8000"
+para_test = "pytest -n auto"
+test = "pytest"
