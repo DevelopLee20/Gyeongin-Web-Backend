@@ -11,6 +11,10 @@ starlette = "*"
 gunicorn = "*"
 motor = "*"
 pydantic_settings = "*"
+pandas = "*"
+xlrd = "*"
+openpyxl = "*"
+python-multipart = "*"
 
 [dev-packages]
 pytest = "*"
