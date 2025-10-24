@@ -4,6 +4,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     MONGO_DB_URL: str
     MODE: str
+    OPENAPI_API_KEY: str
 
     class Config:
         env_file = ".env"
