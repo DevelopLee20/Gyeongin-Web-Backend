@@ -2,6 +2,7 @@
 
 ## TODO List
 
+- [ ] bid 관련 CRUD API 구현
 - [ ] DEV docker 설정 배치 파일 생성
 - [ ] PROD docker 설정 배치 파일 생성
 - [ ] PROD 환경에서 APP_PORT 주입 안되는 문제 해결
