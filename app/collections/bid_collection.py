@@ -65,39 +65,65 @@ class BidCollection:
     @classmethod
     async def bulk_insert_bids(
         cls, bid_documents: list[BidDocument]
-    ) -> tuple[int, list[str]]:
-        """입찰 문서 일괄 삽입 (중복 체크 포함)
+    ) -> tuple[int, int, list[str]]:
+        """입찰 문서 일괄 삽입/업데이트 (upsert)
 
         Args:
-            bid_documents: 삽입할 입찰 문서 리스트
+            bid_documents: 삽입/업데이트할 입찰 문서 리스트
 
         Returns:
-            (저장된 개수, 중복된 공고번호 리스트)
+            (삽입된 개수, 업데이트된 개수, 업데이트된 공고번호 리스트)
         """
         if not bid_documents:
-            return 0, []
+            return 0, 0, []
 
-        duplicates = []
-        to_insert = []
+        from pymongo import UpdateOne
+
+        # bulk_write를 위한 operations 생성
+        operations = []
+        announcement_numbers = []
 
         for bid_doc in bid_documents:
-            # 중복 체크
-            is_duplicate = await cls.check_duplicate_by_announcement_number(
-                bid_doc.announcement_number
+            doc_dict = dataclasses.asdict(bid_doc)
+            # _id 필드 제거 (upsert 시 MongoDB가 자동 생성하거나 기존 것 유지)
+            doc_dict.pop("_id", None)
+
+            operations.append(
+                UpdateOne(
+                    {"announcement_number": bid_doc.announcement_number},
+                    {"$set": doc_dict},
+                    upsert=True,
+                )
             )
+            announcement_numbers.append(bid_doc.announcement_number)
 
-            if is_duplicate:
-                duplicates.append(bid_doc.announcement_number)
-            else:
-                to_insert.append(dataclasses.asdict(bid_doc))
+        # bulk_write 실행
+        if not operations:
+            return 0, 0, []
 
-        # 삽입할 문서가 있으면 bulk insert
-        inserted_count = 0
-        if to_insert:
-            result = await cls._collection.insert_many(to_insert)
-            inserted_count = len(result.inserted_ids) if result else 0
+        result = await cls._collection.bulk_write(operations)
 
-        return inserted_count, duplicates
+        # upserted된 공고번호 수집
+        upserted_announcement_numbers = set()
+        if result.upserted_ids:
+            for upserted_id in result.upserted_ids.values():
+                doc = await cls._collection.find_one({"_id": upserted_id})
+                if doc:
+                    upserted_announcement_numbers.add(doc["announcement_number"])
+
+        # 업데이트된 공고번호 = 전체 - upserted된 것
+        # matched_count는 기존에 존재하던 문서 개수 (수정 여부와 무관)
+        updated_list = [
+            num
+            for num in announcement_numbers
+            if num not in upserted_announcement_numbers
+        ]
+
+        inserted_count = result.upserted_count if result.upserted_count else 0
+        # matched_count - upserted_count = 실제로 업데이트 시도한 문서 개수
+        updated_count = result.matched_count if result.matched_count else 0
+
+        return inserted_count, updated_count, updated_list
 
     @classmethod
     async def find_all_bids(cls, skip: int = 0, limit: int = 50) -> list[BidDocument]:

@@ -1,5 +1,7 @@
 import pytest
 import time
+import pandas as pd
+from io import BytesIO
 from starlette.status import (
     HTTP_200_OK,
     HTTP_201_CREATED,
@@ -58,7 +60,7 @@ class TestBidCRUD:
             self._generate_unique_announcement_number()
         )
 
-        response = await async_client.post("/bid/", json=sample_bid_data)
+        response = await async_client.post("/bid", json=sample_bid_data)
 
         assert response.status_code == HTTP_200_OK
         data = response.json()
@@ -80,10 +82,10 @@ class TestBidCRUD:
         )
 
         # 첫 번째 생성
-        await async_client.post("/bid/", json=sample_bid_data)
+        await async_client.post("/bid", json=sample_bid_data)
 
         # 동일한 공고번호로 재시도
-        response = await async_client.post("/bid/", json=sample_bid_data)
+        response = await async_client.post("/bid", json=sample_bid_data)
 
         assert response.status_code == HTTP_400_BAD_REQUEST
         data = response.json()
@@ -96,10 +98,10 @@ class TestBidCRUD:
         sample_bid_data["announcement_number"] = (
             self._generate_unique_announcement_number()
         )
-        await async_client.post("/bid/", json=sample_bid_data)
+        await async_client.post("/bid", json=sample_bid_data)
 
         # 목록 조회
-        response = await async_client.get("/bid/?page=1&size=10")
+        response = await async_client.get("/bid?page=1&size=10")
 
         assert response.status_code == HTTP_200_OK
         data = response.json()
@@ -118,14 +120,14 @@ class TestBidCRUD:
     async def test_get_bids_list_pagination(self, async_client):
         """입찰 목록 페이지네이션 테스트"""
         # 첫 번째 페이지 조회
-        response_page1 = await async_client.get("/bid/?page=1&size=5")
+        response_page1 = await async_client.get("/bid?page=1&size=5")
         data_page1 = response_page1.json()
 
         assert data_page1["data"]["page"] == 1
         assert data_page1["data"]["size"] == 5
 
         # 두 번째 페이지 조회
-        response_page2 = await async_client.get("/bid/?page=2&size=5")
+        response_page2 = await async_client.get("/bid?page=2&size=5")
         data_page2 = response_page2.json()
 
         assert data_page2["data"]["page"] == 2
@@ -138,7 +140,7 @@ class TestBidCRUD:
         sample_bid_data["announcement_number"] = (
             self._generate_unique_announcement_number()
         )
-        create_response = await async_client.post("/bid/", json=sample_bid_data)
+        create_response = await async_client.post("/bid", json=sample_bid_data)
         created_id = create_response.json()["data"]["id"]
 
         # ID로 조회
@@ -175,7 +177,7 @@ class TestBidCRUD:
         sample_bid_data["announcement_number"] = (
             self._generate_unique_announcement_number()
         )
-        await async_client.post("/bid/", json=sample_bid_data)
+        await async_client.post("/bid", json=sample_bid_data)
 
         # 공고번호로 조회
         announcement_number = sample_bid_data["announcement_number"]
@@ -205,7 +207,7 @@ class TestBidCRUD:
         sample_bid_data["announcement_number"] = (
             self._generate_unique_announcement_number()
         )
-        create_response = await async_client.post("/bid/", json=sample_bid_data)
+        create_response = await async_client.post("/bid", json=sample_bid_data)
         created_id = create_response.json()["data"]["id"]
 
         # 업데이트 실행
@@ -254,7 +256,7 @@ class TestBidCRUD:
         sample_bid_data["announcement_number"] = (
             self._generate_unique_announcement_number()
         )
-        create_response = await async_client.post("/bid/", json=sample_bid_data)
+        create_response = await async_client.post("/bid", json=sample_bid_data)
         created_id = create_response.json()["data"]["id"]
 
         # 삭제 실행
@@ -289,7 +291,7 @@ class TestBidCRUD:
         sample_bid_data["announcement_number"] = (
             self._generate_unique_announcement_number()
         )
-        create_response = await async_client.post("/bid/", json=sample_bid_data)
+        create_response = await async_client.post("/bid", json=sample_bid_data)
         created_id = create_response.json()["data"]["id"]
 
         # 조회
@@ -337,7 +339,7 @@ class TestBidCRUD:
         sample_bid_data["announcement_number"] = (
             self._generate_unique_announcement_number()
         )
-        create_response = await async_client.post("/bid/", json=sample_bid_data)
+        create_response = await async_client.post("/bid", json=sample_bid_data)
         created_id = create_response.json()["data"]["id"]
 
         # 하나의 필드만 업데이트
@@ -358,3 +360,162 @@ class TestBidCRUD:
             == sample_bid_data["announcement_number"]
         )
         assert updated_data["ordering_agency"] == sample_bid_data["ordering_agency"]
+
+    @pytest.mark.asyncio
+    async def test_upload_bid_excel_insert(self, async_client):
+        """엑셀 업로드 테스트 - 신규 데이터 삽입"""
+        # 테스트용 엑셀 데이터 생성
+        unique_num = self._generate_unique_announcement_number()
+        df = pd.DataFrame(
+            [
+                {
+                    "번호": 1,
+                    "타입": "공사",
+                    "참가마감": 5,
+                    "투찰마감": "25-01-20 10:00",
+                    "입찰일": "25-01-21 14:00",
+                    "발주기관": "테스트기관",
+                    "공고명": "테스트 업로드 공사",
+                    "공고번호": unique_num,
+                    "업종": "건설업",
+                    "지역": "서울",
+                    "추정가격": 100000000,
+                    "기초금액": 95000000,
+                    "1순위업체": "테스트건설",
+                    "낙찰금액": 94000000,
+                    "예정가격": 96000000,
+                    "예정사정": 0.98,
+                    "기초/낙찰": 0.989,
+                    "예정/낙찰": 0.979,
+                    "추정/낙찰": 0.94,
+                }
+            ]
+        )
+
+        # 엑셀 파일로 변환
+        excel_buffer = BytesIO()
+        df.to_excel(excel_buffer, index=False, engine="openpyxl")
+        excel_buffer.seek(0)
+
+        # 업로드 요청
+        files = {"file": ("test.xlsx", excel_buffer, "application/vnd.ms-excel")}
+        response = await async_client.post("/bid/upload", files=files)
+
+        assert response.status_code == HTTP_200_OK
+        data = response.json()
+
+        assert data["status_code"] == HTTP_200_OK
+        assert data["detail"] == "입찰 데이터 업로드 성공"
+        assert "inserted_count" in data["data"]
+        assert "updated_count" in data["data"]
+        assert "updated_list" in data["data"]
+        assert data["data"]["inserted_count"] == 1
+        assert data["data"]["updated_count"] == 0
+
+    @pytest.mark.asyncio
+    async def test_upload_bid_excel_update(self, async_client):
+        """엑셀 업로드 테스트 - 기존 데이터 업데이트"""
+        # 고유한 공고번호 생성
+        unique_num = self._generate_unique_announcement_number()
+
+        # 첫 번째 업로드 (신규 삽입)
+        df1 = pd.DataFrame(
+            [
+                {
+                    "번호": 1,
+                    "타입": "공사",
+                    "참가마감": 5,
+                    "투찰마감": "25-01-20 10:00",
+                    "입찰일": "25-01-21 14:00",
+                    "발주기관": "테스트기관",
+                    "공고명": "원본 공고명",
+                    "공고번호": unique_num,
+                    "업종": "건설업",
+                    "지역": "서울",
+                    "추정가격": 100000000,
+                    "기초금액": 95000000,
+                    "1순위업체": "원본건설",
+                    "낙찰금액": 94000000,
+                    "예정가격": 96000000,
+                    "예정사정": 0.98,
+                    "기초/낙찰": 0.989,
+                    "예정/낙찰": 0.979,
+                    "추정/낙찰": 0.94,
+                }
+            ]
+        )
+
+        excel_buffer1 = BytesIO()
+        df1.to_excel(excel_buffer1, index=False, engine="openpyxl")
+        excel_buffer1.seek(0)
+
+        files1 = {"file": ("test1.xlsx", excel_buffer1, "application/vnd.ms-excel")}
+        response1 = await async_client.post("/bid/upload", files=files1)
+
+        assert response1.status_code == HTTP_200_OK
+        data1 = response1.json()
+        assert data1["data"]["inserted_count"] == 1
+
+        # 두 번째 업로드 (업데이트) - 같은 공고번호, 다른 데이터
+        df2 = pd.DataFrame(
+            [
+                {
+                    "번호": 1,
+                    "타입": "공사",
+                    "참가마감": 5,
+                    "투찰마감": "25-01-20 10:00",
+                    "입찰일": "25-01-21 14:00",
+                    "발주기관": "테스트기관",
+                    "공고명": "수정된 공고명",
+                    "공고번호": unique_num,
+                    "업종": "건설업",
+                    "지역": "서울",
+                    "추정가격": 100000000,
+                    "기초금액": 95000000,
+                    "1순위업체": "수정건설",
+                    "낙찰금액": 93000000,
+                    "예정가격": 96000000,
+                    "예정사정": 0.98,
+                    "기초/낙찰": 0.989,
+                    "예정/낙찰": 0.979,
+                    "추정/낙찰": 0.94,
+                }
+            ]
+        )
+
+        excel_buffer2 = BytesIO()
+        df2.to_excel(excel_buffer2, index=False, engine="openpyxl")
+        excel_buffer2.seek(0)
+
+        files2 = {"file": ("test2.xlsx", excel_buffer2, "application/vnd.ms-excel")}
+        response2 = await async_client.post("/bid/upload", files=files2)
+
+        assert response2.status_code == HTTP_200_OK
+        data2 = response2.json()
+
+        # 업데이트 확인
+        assert data2["data"]["inserted_count"] == 0
+        assert data2["data"]["updated_count"] == 1
+        assert data2["data"]["updated_list"] == [unique_num]
+
+        # DB에서 조회하여 업데이트 확인
+        get_response = await async_client.get(f"/bid/announcement/{unique_num}")
+        assert get_response.status_code == HTTP_200_OK
+        updated_bid = get_response.json()["data"]
+
+        assert updated_bid["announcement_name"] == "수정된 공고명"
+        assert updated_bid["first_place_company"] == "수정건설"
+        assert updated_bid["winning_bid_amount"] == 93000000
+
+    @pytest.mark.asyncio
+    async def test_upload_bid_excel_invalid_file(self, async_client):
+        """엑셀 업로드 테스트 - 잘못된 파일 형식"""
+        # 텍스트 파일 업로드 시도
+        text_content = b"This is not an excel file"
+        files = {"file": ("test.txt", BytesIO(text_content), "text/plain")}
+
+        response = await async_client.post("/bid/upload", files=files)
+
+        assert response.status_code == HTTP_400_BAD_REQUEST
+        data = response.json()
+        assert "엑셀 파일만 업로드 가능합니다" in data["detail"]

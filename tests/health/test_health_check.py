@@ -6,7 +6,7 @@ class TestHealthCheck:
     @pytest.mark.asyncio
     async def test_health_check_async(self, async_client):
         """비동기 방식 헬스체크 테스트"""
-        response = await async_client.get("/health/")
+        response = await async_client.get("/health")
 
         assert response.status_code == 200
         data = response.json()

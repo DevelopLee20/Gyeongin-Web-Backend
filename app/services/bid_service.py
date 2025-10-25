@@ -77,15 +77,17 @@ class BidService:
                     )
                     continue
 
-            # MongoDB에 bulk insert
-            inserted_count, duplicates = await BidCollection.bulk_insert_bids(
-                bid_documents
-            )
+            # MongoDB에 bulk upsert (insert + update)
+            (
+                inserted_count,
+                updated_count,
+                updated_list,
+            ) = await BidCollection.bulk_insert_bids(bid_documents)
 
             return BidUploadData(
                 inserted_count=inserted_count,
-                duplicate_count=len(duplicates),
-                duplicates=duplicates,
+                updated_count=updated_count,
+                updated_list=updated_list,
             )
 
         except Exception as e:
