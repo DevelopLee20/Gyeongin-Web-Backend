@@ -9,7 +9,7 @@ from app.db.mongo_db import db
 router = APIRouter(prefix="/health", tags=["Health"])
 
 
-@router.get("/", tags=["Health"])
+@router.get("", tags=["Health"])
 async def health_check():
     """헬스체크 API"""
     return BaseResponse(

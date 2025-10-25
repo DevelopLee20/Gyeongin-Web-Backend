@@ -36,7 +36,7 @@ async def upload_bid_data(file: UploadFile = File(...)):
     )
 
 
-@router.get("/", tags=["Bid"], response_model=BidListResponse)
+@router.get("", tags=["Bid"], response_model=BidListResponse)
 async def get_bids(
     page: int = Query(default=1, ge=1, description="페이지 번호 (1부터 시작)"),
     size: int = Query(default=100, ge=1, le=1000, description="페이지 크기"),
@@ -101,7 +101,7 @@ async def get_bid_by_announcement_number(
     return BidResponse(status_code=HTTP_200_OK, detail="입찰 조회 성공", data=data)
 
 
-@router.post("/", tags=["Bid"], response_model=BaseResponse)
+@router.post("", tags=["Bid"], response_model=BaseResponse)
 async def create_bid(request: BidCreateRequest):
     """입찰 문서 생성 API
 
