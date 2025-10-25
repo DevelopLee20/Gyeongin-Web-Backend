@@ -1,6 +1,5 @@
 import pytest
 import time
-from datetime import datetime
 from starlette.status import (
     HTTP_200_OK,
     HTTP_201_CREATED,
@@ -55,7 +54,9 @@ class TestBidCRUD:
     async def test_create_bid(self, async_client, sample_bid_data):
         """입찰 생성 API 테스트"""
         # 고유한 공고번호 생성
-        sample_bid_data["announcement_number"] = self._generate_unique_announcement_number()
+        sample_bid_data["announcement_number"] = (
+            self._generate_unique_announcement_number()
+        )
 
         response = await async_client.post("/bid/", json=sample_bid_data)
 
@@ -74,7 +75,9 @@ class TestBidCRUD:
     async def test_create_bid_duplicate(self, async_client, sample_bid_data):
         """중복 공고번호로 입찰 생성 시 실패 테스트"""
         # 고유한 공고번호 생성
-        sample_bid_data["announcement_number"] = self._generate_unique_announcement_number()
+        sample_bid_data["announcement_number"] = (
+            self._generate_unique_announcement_number()
+        )
 
         # 첫 번째 생성
         await async_client.post("/bid/", json=sample_bid_data)
@@ -90,7 +93,9 @@ class TestBidCRUD:
     async def test_get_bids_list(self, async_client, sample_bid_data):
         """입찰 목록 조회 API 테스트"""
         # 테스트 데이터 생성
-        sample_bid_data["announcement_number"] = self._generate_unique_announcement_number()
+        sample_bid_data["announcement_number"] = (
+            self._generate_unique_announcement_number()
+        )
         await async_client.post("/bid/", json=sample_bid_data)
 
         # 목록 조회
@@ -130,7 +135,9 @@ class TestBidCRUD:
     async def test_get_bid_by_id(self, async_client, sample_bid_data):
         """ID로 입찰 조회 API 테스트"""
         # 테스트 데이터 생성
-        sample_bid_data["announcement_number"] = self._generate_unique_announcement_number()
+        sample_bid_data["announcement_number"] = (
+            self._generate_unique_announcement_number()
+        )
         create_response = await async_client.post("/bid/", json=sample_bid_data)
         created_id = create_response.json()["data"]["id"]
 
@@ -143,7 +150,10 @@ class TestBidCRUD:
         assert data["status_code"] == HTTP_200_OK
         assert data["detail"] == "입찰 조회 성공"
         assert data["data"]["id"] == created_id
-        assert data["data"]["announcement_number"] == sample_bid_data["announcement_number"]
+        assert (
+            data["data"]["announcement_number"]
+            == sample_bid_data["announcement_number"]
+        )
         assert data["data"]["announcement_name"] == sample_bid_data["announcement_name"]
 
     @pytest.mark.asyncio
@@ -162,7 +172,9 @@ class TestBidCRUD:
     async def test_get_bid_by_announcement_number(self, async_client, sample_bid_data):
         """공고번호로 입찰 조회 API 테스트"""
         # 테스트 데이터 생성
-        sample_bid_data["announcement_number"] = self._generate_unique_announcement_number()
+        sample_bid_data["announcement_number"] = (
+            self._generate_unique_announcement_number()
+        )
         await async_client.post("/bid/", json=sample_bid_data)
 
         # 공고번호로 조회
@@ -190,7 +202,9 @@ class TestBidCRUD:
     async def test_update_bid(self, async_client, sample_bid_data, update_bid_data):
         """입찰 업데이트 API 테스트"""
         # 테스트 데이터 생성
-        sample_bid_data["announcement_number"] = self._generate_unique_announcement_number()
+        sample_bid_data["announcement_number"] = (
+            self._generate_unique_announcement_number()
+        )
         create_response = await async_client.post("/bid/", json=sample_bid_data)
         created_id = create_response.json()["data"]["id"]
 
@@ -209,10 +223,18 @@ class TestBidCRUD:
         updated_data = get_response.json()["data"]
 
         assert updated_data["announcement_name"] == update_bid_data["announcement_name"]
-        assert updated_data["first_place_company"] == update_bid_data["first_place_company"]
-        assert updated_data["winning_bid_amount"] == update_bid_data["winning_bid_amount"]
+        assert (
+            updated_data["first_place_company"]
+            == update_bid_data["first_place_company"]
+        )
+        assert (
+            updated_data["winning_bid_amount"] == update_bid_data["winning_bid_amount"]
+        )
         # 수정하지 않은 필드는 유지되어야 함
-        assert updated_data["announcement_number"] == sample_bid_data["announcement_number"]
+        assert (
+            updated_data["announcement_number"]
+            == sample_bid_data["announcement_number"]
+        )
 
     @pytest.mark.asyncio
     async def test_update_bid_not_found(self, async_client, update_bid_data):
@@ -229,7 +251,9 @@ class TestBidCRUD:
     async def test_delete_bid(self, async_client, sample_bid_data):
         """입찰 삭제 API 테스트"""
         # 테스트 데이터 생성
-        sample_bid_data["announcement_number"] = self._generate_unique_announcement_number()
+        sample_bid_data["announcement_number"] = (
+            self._generate_unique_announcement_number()
+        )
         create_response = await async_client.post("/bid/", json=sample_bid_data)
         created_id = create_response.json()["data"]["id"]
 
@@ -262,7 +286,9 @@ class TestBidCRUD:
     async def test_bid_response_structure(self, async_client, sample_bid_data):
         """입찰 응답 구조 검증 테스트"""
         # 테스트 데이터 생성
-        sample_bid_data["announcement_number"] = self._generate_unique_announcement_number()
+        sample_bid_data["announcement_number"] = (
+            self._generate_unique_announcement_number()
+        )
         create_response = await async_client.post("/bid/", json=sample_bid_data)
         created_id = create_response.json()["data"]["id"]
 
@@ -279,13 +305,26 @@ class TestBidCRUD:
         # 데이터 필드 검증
         bid_data = data["data"]
         expected_fields = [
-            "id", "number", "type", "participation_deadline",
-            "bid_deadline", "bid_date", "ordering_agency",
-            "announcement_name", "announcement_number", "industry",
-            "region", "estimated_price", "base_amount",
-            "first_place_company", "winning_bid_amount", "expected_price",
-            "expected_adjustment", "base_to_winning_ratio",
-            "expected_to_winning_ratio", "estimated_to_winning_ratio"
+            "id",
+            "number",
+            "type",
+            "participation_deadline",
+            "bid_deadline",
+            "bid_date",
+            "ordering_agency",
+            "announcement_name",
+            "announcement_number",
+            "industry",
+            "region",
+            "estimated_price",
+            "base_amount",
+            "first_place_company",
+            "winning_bid_amount",
+            "expected_price",
+            "expected_adjustment",
+            "base_to_winning_ratio",
+            "expected_to_winning_ratio",
+            "estimated_to_winning_ratio",
         ]
 
         for field in expected_fields:
@@ -295,7 +334,9 @@ class TestBidCRUD:
     async def test_partial_update_bid(self, async_client, sample_bid_data):
         """부분 업데이트 테스트 (일부 필드만 수정)"""
         # 테스트 데이터 생성
-        sample_bid_data["announcement_number"] = self._generate_unique_announcement_number()
+        sample_bid_data["announcement_number"] = (
+            self._generate_unique_announcement_number()
+        )
         create_response = await async_client.post("/bid/", json=sample_bid_data)
         created_id = create_response.json()["data"]["id"]
 
@@ -312,5 +353,8 @@ class TestBidCRUD:
         # 수정된 필드 확인
         assert updated_data["announcement_name"] == "부분 수정된 공고명"
         # 다른 필드는 원본 유지
-        assert updated_data["announcement_number"] == sample_bid_data["announcement_number"]
+        assert (
+            updated_data["announcement_number"]
+            == sample_bid_data["announcement_number"]
+        )
         assert updated_data["ordering_agency"] == sample_bid_data["ordering_agency"]
