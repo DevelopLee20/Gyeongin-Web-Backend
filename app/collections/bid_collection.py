@@ -98,3 +98,105 @@ class BidCollection:
             inserted_count = len(result.inserted_ids) if result else 0
 
         return inserted_count, duplicates
+
+    @classmethod
+    async def find_all_bids(cls, skip: int = 0, limit: int = 50) -> list[BidDocument]:
+        """모든 입찰 문서 조회 (페이지네이션)
+
+        Args:
+            skip: 건너뛸 문서 개수
+            limit: 조회할 문서 개수
+
+        Returns:
+            입찰 문서 리스트
+        """
+        cursor = cls._collection.find().skip(skip).limit(limit)
+        documents = await cursor.to_list(length=limit)
+        return [cls._parse(doc) for doc in documents]
+
+    @classmethod
+    async def find_bid_by_id(cls, bid_id: str) -> BidDocument | None:
+        """ID로 입찰 문서 조회
+
+        Args:
+            bid_id: 입찰 문서 ID
+
+        Returns:
+            입찰 문서 또는 None
+        """
+        from bson import ObjectId
+
+        try:
+            document = await cls._collection.find_one({"_id": ObjectId(bid_id)})
+            return cls._parse(document) if document else None
+        except Exception:
+            return None
+
+    @classmethod
+    async def find_bid_by_announcement_number(
+        cls, announcement_number: str
+    ) -> BidDocument | None:
+        """공고번호로 입찰 문서 조회
+
+        Args:
+            announcement_number: 공고번호
+
+        Returns:
+            입찰 문서 또는 None
+        """
+        document = await cls._collection.find_one(
+            {"announcement_number": announcement_number}
+        )
+        return cls._parse(document) if document else None
+
+    @classmethod
+    async def update_bid(cls, bid_id: str, bid_document: BidDocument) -> bool:
+        """입찰 문서 업데이트
+
+        Args:
+            bid_id: 입찰 문서 ID
+            bid_document: 업데이트할 입찰 문서
+
+        Returns:
+            성공 여부
+        """
+        from bson import ObjectId
+
+        try:
+            # _id 제외한 필드만 업데이트
+            update_data = dataclasses.asdict(bid_document)
+            update_data.pop("_id", None)
+
+            result = await cls._collection.update_one(
+                {"_id": ObjectId(bid_id)}, {"$set": update_data}
+            )
+            return result.modified_count > 0
+        except Exception:
+            return False
+
+    @classmethod
+    async def delete_bid(cls, bid_id: str) -> bool:
+        """입찰 문서 삭제
+
+        Args:
+            bid_id: 입찰 문서 ID
+
+        Returns:
+            성공 여부
+        """
+        from bson import ObjectId
+
+        try:
+            result = await cls._collection.delete_one({"_id": ObjectId(bid_id)})
+            return result.deleted_count > 0
+        except Exception:
+            return False
+
+    @classmethod
+    async def count_all_bids(cls) -> int:
+        """전체 입찰 문서 개수 조회
+
+        Returns:
+            전체 입찰 문서 개수
+        """
+        return await cls._collection.count_documents({})
