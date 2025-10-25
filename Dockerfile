@@ -66,4 +66,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:${APP_PORT}/health || exit 1
 
 # Gunicorn + Uvicorn 워커로 애플리케이션 실행
-CMD ["gunicorn", "app.main:app", "--workers", "4", "--worker-class", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:${APP_PORT}", "--timeout", "120", "--access-logfile", "-", "--error-logfile", "-", "--log-level", "info"]
+CMD ["sh", "-c", "exec gunicorn app.main:app --workers 4 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:${APP_PORT} --timeout 120 --access-logfile - --error-logfile - --log-level info"]

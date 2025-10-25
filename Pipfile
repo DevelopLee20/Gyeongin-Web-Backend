@@ -15,12 +15,12 @@ pandas = "*"
 xlrd = "*"
 openpyxl = "*"
 python-multipart = "*"
+httpx = "*"
 
 [dev-packages]
 pytest = "*"
 pytest-asyncio = "*"
 pytest-xdist = "*"
-httpx = "*"
 pre-commit = "*"
 
 [requires]
