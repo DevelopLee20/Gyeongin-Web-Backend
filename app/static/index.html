@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>입찰 분석 차트</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-4 max-w-7xl">
+        <div class="bg-white rounded-lg shadow-lg p-4">
+            <h1 class="text-2xl font-bold text-gray-800 mb-2">입찰 분석 대시보드</h1>
+            <p class="text-sm text-gray-600 mb-4">기초금액 대비 낙찰금액 비율 시계열 분석</p>
+
+            <div class="mb-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                    <div class="bg-blue-50 p-3 rounded-lg">
+                        <p class="text-xs text-gray-600">총 데이터 수</p>
+                        <p id="totalCount" class="text-xl font-bold text-blue-600">-</p>
+                    </div>
+                    <div class="bg-green-50 p-3 rounded-lg">
+                        <p class="text-xs text-gray-600">평균 비율</p>
+                        <p id="avgRatio" class="text-xl font-bold text-green-600">-</p>
+                    </div>
+                    <div class="bg-purple-50 p-3 rounded-lg">
+                        <p class="text-xs text-gray-600">데이터 기간</p>
+                        <p id="dateRange" class="text-xs font-semibold text-purple-600">-</p>
+                    </div>
+                </div>
+
+                <div id="loadingStatus" class="hidden mb-3">
+                    <div class="bg-blue-50 border border-blue-200 text-blue-700 px-3 py-2 rounded-md">
+                        <p class="text-sm font-semibold">로딩 중...</p>
+                    </div>
+                </div>
+
+                <div id="errorStatus" class="hidden mb-3">
+                    <div class="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-md">
+                        <p class="text-sm font-semibold">에러 발생:</p>
+                        <p id="errorMessage" class="text-xs"></p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-gray-50 p-3 rounded-lg">
+                <canvas id="bidChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let chart = null;
+
+        async function loadData() {
+            const apiBaseUrl = 'http://localhost:8888/bid';
+            const loadingStatus = document.getElementById('loadingStatus');
+            const errorStatus = document.getElementById('errorStatus');
+
+            // 상태 초기화
+            loadingStatus.classList.remove('hidden');
+            errorStatus.classList.add('hidden');
+
+            try {
+                // 최신 300개 데이터 조회
+                const response = await fetch(`${apiBaseUrl}?page=1&size=300`);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                const data = result.data;
+
+                if (!data || !data.items || data.items.length === 0) {
+                    throw new Error('데이터가 없습니다.');
+                }
+
+                // 데이터 처리
+                processAndDisplayData(data.items);
+
+                loadingStatus.classList.add('hidden');
+
+            } catch (error) {
+                console.error('Error loading data:', error);
+                loadingStatus.classList.add('hidden');
+                errorStatus.classList.remove('hidden');
+                document.getElementById('errorMessage').textContent = error.message;
+            }
+        }
+
+        function processAndDisplayData(items) {
+            // base_to_winning_ratio가 유효한 데이터만 필터링
+            const validData = items.filter(item =>
+                item.base_to_winning_ratio != null &&
+                item.bid_date != null &&
+                item.base_to_winning_ratio > 0
+            );
+
+            if (validData.length === 0) {
+                throw new Error('유효한 데이터가 없습니다.');
+            }
+
+            // bid_date 기준 정렬
+            validData.sort((a, b) => new Date(a.bid_date) - new Date(b.bid_date));
+
+            // 최소 날짜와 최대 날짜 계산
+            const dates = validData.map(item => new Date(item.bid_date));
+            const minDate = new Date(Math.min(...dates));
+            const maxDataDate = new Date(Math.max(...dates)); // 데이터의 최대 날짜
+
+            // 데이터의 최대 날짜에서 6개월 추가 (전체 범위의 끝)
+            const endDate = new Date(maxDataDate);
+            endDate.setMonth(endDate.getMonth() + 6);
+
+            // 초기 표시 범위: 데이터 최대 날짜부터 3개월 전까지만 표시
+            const initialStartDate = new Date(maxDataDate);
+            initialStartDate.setMonth(initialStartDate.getMonth() - 3);
+            const initialEndDate = new Date(endDate); // 초기 끝은 전체 범위의 끝과 동일
+
+            // 통계 정보 업데이트
+            const totalCount = validData.length;
+            const avgRatio = validData.reduce((sum, item) => sum + item.base_to_winning_ratio, 0) / totalCount;
+
+            document.getElementById('totalCount').textContent = totalCount.toLocaleString();
+            document.getElementById('avgRatio').textContent = (avgRatio * 100).toFixed(2) + '%';
+            document.getElementById('dateRange').textContent =
+                `${minDate.toLocaleDateString('ko-KR')} ~ ${endDate.toLocaleDateString('ko-KR')}`;
+
+            // 차트 데이터 준비
+            const chartData = validData.map(item => ({
+                x: new Date(item.bid_date),
+                y: item.base_to_winning_ratio * 100, // 백분율로 변환
+                announcement_name: item.announcement_name,
+                ordering_agency: item.ordering_agency,
+                announcement_number: item.announcement_number
+            }));
+
+            // 이동평균선 계산
+            const movingAverages = calculateMovingAverages(chartData, endDate);
+
+            // 차트 생성
+            createChart(chartData, movingAverages, minDate, endDate, initialStartDate, initialEndDate);
+        }
+
+        function calculateMovingAverages(data, endDate) {
+            // 날짜 기준으로 정렬된 데이터
+            const sortedData = [...data].sort((a, b) => a.x - b.x);
+
+            const ma7 = [];
+            const ma30 = [];
+            const ma90 = [];
+
+            for (let i = 0; i < sortedData.length; i++) {
+                // 7건 이동평균
+                if (i >= 6) {
+                    const sum7 = sortedData.slice(i - 6, i + 1).reduce((acc, item) => acc + item.y, 0);
+                    ma7.push({ x: sortedData[i].x, y: sum7 / 7, predicted: false });
+                }
+
+                // 30건 이동평균
+                if (i >= 29) {
+                    const sum30 = sortedData.slice(i - 29, i + 1).reduce((acc, item) => acc + item.y, 0);
+                    ma30.push({ x: sortedData[i].x, y: sum30 / 30, predicted: false });
+                }
+
+                // 90건 이동평균
+                if (i >= 89) {
+                    const sum90 = sortedData.slice(i - 89, i + 1).reduce((acc, item) => acc + item.y, 0);
+                    ma90.push({ x: sortedData[i].x, y: sum90 / 90, predicted: false });
+                }
+            }
+
+            // 미래 예측 - 선형 회귀를 사용하여 각 이동평균선을 연장
+            const extendMA = (maData, endDate) => {
+                if (maData.length < 2) return maData;
+
+                // 최근 30개 데이터를 사용하여 추세 계산
+                const recentData = maData.slice(-Math.min(30, maData.length));
+                const n = recentData.length;
+
+                // 선형 회귀 계산
+                let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+                recentData.forEach((point, i) => {
+                    sumX += i;
+                    sumY += point.y;
+                    sumXY += i * point.y;
+                    sumX2 += i * i;
+                });
+
+                const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+                const intercept = (sumY - slope * sumX) / n;
+
+                // 마지막 데이터 포인트부터 endDate까지 예측
+                const lastPoint = maData[maData.length - 1];
+                const extended = [...maData];
+
+                // 한 달 간격으로 예측 포인트 추가
+                const currentDate = new Date(lastPoint.x);
+                const futureDate = new Date(endDate);
+
+                let monthsAhead = 1;
+                while (currentDate < futureDate && monthsAhead <= 6) {
+                    const nextDate = new Date(lastPoint.x);
+                    nextDate.setMonth(nextDate.getMonth() + monthsAhead);
+
+                    if (nextDate <= futureDate) {
+                        // 선형 추세에 따라 예측값 계산
+                        const predictedY = intercept + slope * (n - 1 + monthsAhead * 10);
+                        extended.push({ x: nextDate, y: predictedY, predicted: true });
+                    }
+                    monthsAhead++;
+                }
+
+                return extended;
+            };
+
+            return {
+                ma7: extendMA(ma7, endDate),
+                ma30: extendMA(ma30, endDate),
+                ma90: extendMA(ma90, endDate)
+            };
+        }
+
+        function createChart(data, movingAverages, minDate, maxDate) {
+            const ctx = document.getElementById('bidChart').getContext('2d');
+
+            // 기존 차트가 있으면 제거
+            if (chart) {
+                chart.destroy();
+            }
+
+            chart = new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: [
+                        {
+                            label: '기초/낙찰 비율',
+                            data: data,
+                            backgroundColor: 'rgba(59, 130, 246, 0.6)',
+                            borderColor: 'rgba(59, 130, 246, 1)',
+                            borderWidth: 1,
+                            pointRadius: 3,
+                            pointHoverRadius: 5,
+                            showLine: false
+                        },
+                        {
+                            label: '7건 이동평균',
+                            data: movingAverages.ma7,
+                            type: 'line',
+                            borderColor: 'rgba(34, 197, 94, 1)',
+                            backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            fill: false,
+                            tension: 0.4,
+                            segment: {
+                                borderDash: ctx => {
+                                    const point = ctx.p1;
+                                    return point && point.raw && point.raw.predicted ? [5, 5] : [];
+                                }
+                            }
+                        },
+                        {
+                            label: '30건 이동평균',
+                            data: movingAverages.ma30,
+                            type: 'line',
+                            borderColor: 'rgba(249, 115, 22, 1)',
+                            backgroundColor: 'rgba(249, 115, 22, 0.1)',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            fill: false,
+                            tension: 0.4,
+                            segment: {
+                                borderDash: ctx => {
+                                    const point = ctx.p1;
+                                    return point && point.raw && point.raw.predicted ? [5, 5] : [];
+                                }
+                            }
+                        },
+                        {
+                            label: '90건 이동평균',
+                            data: movingAverages.ma90,
+                            type: 'line',
+                            borderColor: 'rgba(168, 85, 247, 1)',
+                            backgroundColor: 'rgba(168, 85, 247, 0.1)',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            fill: false,
+                            tension: 0.4,
+                            segment: {
+                                borderDash: ctx => {
+                                    const point = ctx.p1;
+                                    return point && point.raw && point.raw.predicted ? [5, 5] : [];
+                                }
+                            }
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    aspectRatio: 2.5,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: '기초금액 대비 낙찰금액 비율 시계열 분석',
+                            font: {
+                                size: 14,
+                                weight: 'bold'
+                            },
+                            padding: 10
+                        },
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                font: {
+                                    size: 11
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                title: function(context) {
+                                    const date = new Date(context[0].parsed.x);
+                                    return date.toLocaleDateString('ko-KR');
+                                },
+                                label: function(context) {
+                                    // 이동평균선은 비율만 표시
+                                    if (context.datasetIndex > 0) {
+                                        return `${context.dataset.label}: ${context.parsed.y.toFixed(2)}%`;
+                                    }
+
+                                    // 원본 데이터는 상세 정보 표시
+                                    const point = context.raw;
+                                    return [
+                                        `비율: ${point.y.toFixed(2)}%`,
+                                        `공고명: ${point.announcement_name}`,
+                                        `발주기관: ${point.ordering_agency}`,
+                                        `공고번호: ${point.announcement_number}`
+                                    ];
+                                }
+                            },
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleFont: { size: 14 },
+                            bodyFont: { size: 12 },
+                            padding: 12,
+                            displayColors: false
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'month',
+                                displayFormats: {
+                                    month: 'yyyy-MM'
+                                },
+                                tooltipFormat: 'yyyy-MM-dd'
+                            },
+                            title: {
+                                display: true,
+                                text: '입찰일',
+                                font: {
+                                    size: 12,
+                                    weight: 'bold'
+                                }
+                            },
+                            ticks: {
+                                font: {
+                                    size: 10
+                                }
+                            },
+                            min: minDate.getTime(),
+                            max: maxDate.getTime(),
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.05)'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: '기초/낙찰 비율 (%)',
+                                font: {
+                                    size: 12,
+                                    weight: 'bold'
+                                }
+                            },
+                            min: 80,
+                            max: 105,
+                            ticks: {
+                                stepSize: 5,
+                                font: {
+                                    size: 10
+                                },
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            }
+                        }
+                    },
+                    interaction: {
+                        mode: 'nearest',
+                        intersect: false
+                    }
+                }
+            });
+        }
+
+        // 페이지 로드 시 자동으로 데이터 로드
+        window.addEventListener('load', function() {
+            loadData();
+        });
+    </script>
+</body>
+</html>
